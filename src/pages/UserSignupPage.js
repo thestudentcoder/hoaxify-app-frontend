@@ -6,7 +6,8 @@ export class UserSignupPage extends React.Component {
     displayName: '',
     username: '',
     password: '',
-    passwordRepeat: ''
+    passwordRepeat: '',
+    pendingApiCall: false
   }
 
   onChangeDisplayname = (e) => {
@@ -30,45 +31,77 @@ export class UserSignupPage extends React.Component {
   }
 
   onClickSignup = () => {
-    this.props.actions.postSignup();
+    const user = {
+      username: this.state.username,
+      displayName: this.state.displayName,
+      password: this.state.password
+    };
+    this.setState({ pendingApiCall: true })
+    this.props.actions.postSignup(user).then(response => {
+      this.setState({ pendingApiCall: false })
+    })
+      .catch(
+        error => {
+          this.setState({ pendingApiCall: false })
+      }
+    )
   }
 
   render() {
     return (
-      <div>
-        <h1>Sign Up</h1>
-        <div>
-          <input 
-          placeholder="Your display name" 
-          value={this.state.displayName}
-          onChange={this.onChangeDisplayname}
+      <div className="container">
+        <h1 className="text-center">Sign Up</h1>
+        <div className="col-12 mb-3">
+          <label>Display Name</label>
+          <input
+            className="form-control"
+            placeholder="Your display name"
+            value={this.state.displayName}
+            onChange={this.onChangeDisplayname}
           />
         </div>
-        <div>
+        <div className="col-12 mb-3">
+          <label>Username</label>
           <input
+            className="form-control"
             placeholder="Your username"
             value={this.state.username}
             onChange={this.onChangeUsername}
           />
         </div>
-        <div>
+        <div className="col-12 mb-3">
+          <label>Password</label>
           <input
+            className="form-control"
             placeholder="Your password"
             type="password"
             value={this.state.password}
             onChange={this.onChangePassword}
           />
         </div>
-        <div>
+        <div className="col-12 mb-3">
+          <label>Repeat your password</label>
           <input
+            className="form-control"
             placeholder="Repeat your password"
             type="password"
             value={this.state.passwordRepeat}
             onChange={this.onChangePasswordRepeat}
           />
         </div>
-        <div>
-          <button onClick={this.onClickSignup}>Sign Up</button>
+        <div className="text-center">
+          <button
+            className="btn btn-primary"
+            onClick={this.onClickSignup}
+            disabled={this.state.pendingApiCall}
+          >
+            {this.state.pendingApiCall && (
+              <div className="spinner-border text-light spinner-border-sm mr-1" role="status">
+                <span className="sr-only"></span>
+              </div>
+            )}
+            Sign Up
+          </button>
         </div>
       </div>
     );

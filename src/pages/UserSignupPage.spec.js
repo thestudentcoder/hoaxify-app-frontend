@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
 import { UserSignupPage } from './UserSignupPage';
 
@@ -57,6 +57,42 @@ describe('UserSignup', () => {
       }
     }
 
+    const mockAsyncDelayed = () => {
+      return jest.fn().mockImplementation(() => {
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            resolve({});
+          }, 300)
+        });
+      });
+    }
+
+    // variables for fields
+    let button, displayNameInput, usernameInput, passwordInput, passwordRepeatInput;
+
+    const setupForSubmit = (props) => {
+      // returns reference to rendered component
+      // fills in and clicks submit button
+      // passes actions prop to UserSignPage if any
+      const rendered = render(<UserSignupPage {...props} />)
+    
+      const { container, queryByPlaceholderText } = rendered;
+    
+      displayNameInput = queryByPlaceholderText('Your display name');
+      usernameInput = queryByPlaceholderText('Your username');
+      passwordInput = queryByPlaceholderText('Your password');
+      passwordRepeatInput = queryByPlaceholderText('Repeat your password');
+
+      fireEvent.change(displayNameInput, changeEvent('my-display-name'));
+      fireEvent.change(usernameInput, changeEvent('my-user-name'));
+      fireEvent.change(passwordInput, changeEvent('P4ssword'));
+      fireEvent.change(passwordRepeatInput, changeEvent('P4ssword'));
+
+      button = container.querySelector('button');
+
+      return rendered;
+    }
+
     it('sets the displayName value into state', () => {
       const { queryByPlaceholderText } = render(<UserSignupPage />);
       const displayNameInput = queryByPlaceholderText('Your display name');
@@ -94,42 +130,104 @@ describe('UserSignup', () => {
     });
 
     it('calls postSignup when the fields are valid and the actions are provided in props', () => {
+      // mock
       const actions = {
         postSignup: jest.fn().mockResolvedValueOnce({})
       };
-      const { container, queryByPlaceholderText } = render(<UserSignupPage actions={actions} />)
       
-      const displayNameInput = queryByPlaceholderText('Your display name');
-      const usernameInput = queryByPlaceholderText('Your username');
-      const passwordInput = queryByPlaceholderText('Your password');
-      const passwordRepeatInput = queryByPlaceholderText('Repeat your password');
-
-      fireEvent.change(displayNameInput, changeEvent('my-display-name'));
-      fireEvent.change(usernameInput, changeEvent('my-user-name'));
-      fireEvent.change(passwordInput, changeEvent('P4ssword'));
-      fireEvent.change(passwordRepeatInput, changeEvent('P4ssword'));
-
-      const button = container.querySelector('button');
+      setupForSubmit({ actions });
       fireEvent.click(button);
-      
+
       expect(actions.postSignup).toHaveBeenCalledTimes(1);
     });
 
-    it('it does throw exception when clicking the button when actions not provided in props', () => {
-      const { container, queryByPlaceholderText } = render(<UserSignupPage />)
-      
-      const displayNameInput = queryByPlaceholderText('Your display name');
-      const usernameInput = queryByPlaceholderText('Your username');
-      const passwordInput = queryByPlaceholderText('Your password');
-      const passwordRepeatInput = queryByPlaceholderText('Repeat your password');
-
-      fireEvent.change(displayNameInput, changeEvent('my-display-name'));
-      fireEvent.change(usernameInput, changeEvent('my-user-name'));
-      fireEvent.change(passwordInput, changeEvent('P4ssword'));
-      fireEvent.change(passwordRepeatInput, changeEvent('P4ssword'));
-
-      const button = container.querySelector('button');
+    it('it does not throw exception when clicking the button when actions not provided in props', () => {
+      setupForSubmit();
       expect(() => fireEvent.click(button)).not.toThrow();
+    });
+
+    it('calls post with user body when the files are valid', () => {
+      const actions = {
+        postSignup: jest.fn().mockResolvedValueOnce({})
+      };
+
+      setupForSubmit({ actions });
+      fireEvent.click(button);
+
+      const expectedUserObjbect = {
+        username: 'my-user-name',
+        displayName: 'my-display-name',
+        password: 'P4ssword'
+      };
+
+      expect(actions.postSignup).toHaveBeenCalledWith(expectedUserObjbect);
+    });
+
+    it('does not allow use to click the signup button when there is an ongoing api call', () => {
+      // now we have to make our mock function return response with delay
+      // we will return a promise because our actual axios call returns a promise
+      const actions = {
+        postSignup: mockAsyncDelayed()
+      };
+
+      setupForSubmit({ actions });
+      fireEvent.click(button);
+
+      fireEvent.click(button);
+
+      expect(actions.postSignup).toHaveBeenCalledTimes(1);
+    });
+
+    it('displays spinner when there is an ongoing api call', () => {
+      const actions = {
+        postSignup: mockAsyncDelayed()
+      };
+
+      const { queryByRole } = setupForSubmit({ actions });
+      fireEvent.click(button);
+
+      const spinner = queryByRole('status')
+      expect(spinner).toBeInTheDocument();
+    });
+
+    it('hides spinner after api call finishes successfully', async () => {
+      const actions = {
+        postSignup: mockAsyncDelayed()
+      };
+
+      const { queryByRole } = setupForSubmit({ actions });
+      fireEvent.click(button);
+
+      const spinner = queryByRole('status')
+      await waitFor(() => {
+        expect(spinner).not.toBeInTheDocument();
+      });
+      
+    });
+
+    it('hides spinner after api call finishes with error', async () => {
+      const actions = {
+        postSignup: jest.fn().mockImplementation(() => {
+          return new Promise((resolve, reject) => {
+            setTimeout(() => {
+              reject({
+                response: { data: {} }
+              });
+            }, 300)
+          });
+        })
+      };
+      
+      const { queryByRole } = setupForSubmit({ actions });
+      fireEvent.click(button);
+
+      const spinner = queryByRole('status')
+      await waitFor(() => {
+        expect(spinner).not.toBeInTheDocument();
+      });
+      
     });
   });
 });
+
+console.error = () => { };
